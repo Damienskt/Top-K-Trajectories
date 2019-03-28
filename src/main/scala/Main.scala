@@ -1,12 +1,6 @@
-import java.io.PrintWriter
-
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
-import org.apache.spark.SparkContext._
 import org.apache.spark.rdd.RDD
-
-import annotation.tailrec
-import scala.reflect.ClassTag
 
 import java.text.SimpleDateFormat
 
@@ -22,13 +16,16 @@ object Main extends Main {
     val interestLatitude = 0f
     val start = 7*60 + 25
     val end = 7*60 + 26
+    val k = 2
     val lines = sc.textFile("data/didi_sample_data")
     val dataPoints = rawDataPoints(lines)
-    //dataPoints.saveAsTextFile("data/out/test.txt")
     val trajectories = getTrajectories(dataPoints)
     val filteredTrajectories = filterTrajectoriesByTime(trajectories, start, end)
+    val trajectoriesWithDistance = appendMinimumDistance(filteredTrajectories, interestLongitude, interestLatitude)
 
-    filteredTrajectories.saveAsTextFile("data/out/test.txt")
+    val result = sc.parallelize(trajectoriesWithDistance.take(k))
+
+    result.saveAsTextFile("data/out/result.txt")
   }
 }
 
@@ -58,7 +55,7 @@ class Main extends Serializable {
 
   /** Filter the trajectories based on user input time */
   def filterTrajectoriesByTime(dataPoints: RDD[(String, Iterable[DataPoint])], start: Int, end: Int):
-  RDD[(String, Iterable[DataPoint])] = {
+    RDD[(String, Iterable[DataPoint])] = {
     dataPoints.filter { case (key, xs) =>
       xs.exists { xss =>
         if (start <= end) {
@@ -68,5 +65,18 @@ class Main extends Serializable {
         }
       }
     }
+  }
+
+  /** Return trajectories with minimum distance to query point sorted by distance in ascending order **/
+  def appendMinimumDistance(trajectory: RDD[(String, Iterable[DataPoint])], queryLong: Float, queryLat: Float) :
+    RDD[(String, Double, Iterable[DataPoint])] = {
+    trajectory.map(x => (x._1, x._2.map(
+      x => euclideanDistance(x.latitude, x.latitude, queryLong, queryLat))
+      .reduce((x,y) => List(x,y).min), x._2)).sortBy(_._2)
+  }
+
+  /** Return the euclidean distance between two points */
+  def euclideanDistance(x1: Float, y1: Float, x2: Float, y2: Float): Double = {
+    Math.sqrt(Math.pow(x2 - x1,2) +  Math.pow(y2 - y1,2))
   }
 }
