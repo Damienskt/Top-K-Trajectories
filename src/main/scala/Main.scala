@@ -23,7 +23,7 @@ object Main extends Main {
     val filteredTrajectories = filterTrajectoriesByTime(trajectories, start, end)
     val trajectoriesWithDistance = appendMinimumDistance(filteredTrajectories, interestLongitude, interestLatitude)
     val result = sc.parallelize(trajectoriesWithDistance.take(k)).map(x => (x._1, x._3))
-    result.saveAsTextFile("data/out/result.txt")
+    result.saveAsTextFile("data/out/result3.txt")
   }
 }
 
@@ -47,29 +47,29 @@ class Main extends Serializable {
   }
 
   /** Group the trajectories together */
-  def getTrajectories(dataPoints: RDD[DataPoint]): RDD[(String, Iterable[DataPoint])] = {
-    dataPoints.map(dp => (dp.orderID, dp)).groupByKey()
+  def getTrajectories(dataPoints: RDD[DataPoint]): RDD[(String, Iterable[(String, Int, Float, Float)])] = {
+    dataPoints.map(dp => (dp.orderID, dp.minute, dp.longitude, dp.latitude)).groupBy(_._1)
   }
 
   /** Filter the trajectories based on user input time */
-  def filterTrajectoriesByTime(dataPoints: RDD[(String, Iterable[DataPoint])], start: Int, end: Int):
-    RDD[(String, Iterable[DataPoint])] = {
+  def filterTrajectoriesByTime(dataPoints: RDD[(String, Iterable[(String, Int, Float, Float)])], start: Int, end: Int):
+    RDD[(String, Iterable[(Float, Float)])] = {
     dataPoints.filter { case (key, xs) =>
       xs.exists { xss =>
         if (start <= end) {
-          (xss.minute >= start) && (xss.minute <= end)
+          (xss._2 >= start) && (xss._2 <= end)
         } else {
-          (xss.minute >= start) && (xss.minute <= MAX_MINUTE) || (xss.minute >= 0) && (xss.minute <= end)
+          (xss._2 >= start) && (xss._2 <= MAX_MINUTE) || (xss._2 >= 0) && (xss._2 <= end)
         }
       }
-    }
+    }.map(x => (x._1, x._2.map(x => (x._3, x._4))))
   }
 
   /** Return trajectories with minimum distance to query point sorted by distance in ascending order **/
-  def appendMinimumDistance(trajectory: RDD[(String, Iterable[DataPoint])], queryLong: Float, queryLat: Float) :
-    RDD[(String, Double, Iterable[DataPoint])] = {
+  def appendMinimumDistance(trajectory: RDD[(String, Iterable[(Float, Float)])], queryLong: Float, queryLat: Float) :
+    RDD[(String, Double, Iterable[(Float, Float)])] = {
     trajectory.map(x => (x._1, x._2.map(
-      x => euclideanDistance(x.longitude, x.latitude, queryLong, queryLat))
+      x => euclideanDistance(x._1, x._2, queryLong, queryLat))
       .reduce((x,y) => List(x,y).min), x._2)).sortBy(_._2)
   }
 
