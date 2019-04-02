@@ -53,6 +53,7 @@ class Main extends Serializable {
 
   /** Filter the trajectories based on user input time */
   def filterTrajectoriesByTime(dataPoints: RDD[(String, Iterable[(String, Int, Float, Float)])], start: Int, end: Int):
+
     RDD[(String, Iterable[(Float, Float)])] = {
     dataPoints.filter { case (key, xs) =>
       xs.exists { xss =>
@@ -67,6 +68,7 @@ class Main extends Serializable {
 
   /** Return trajectories with minimum distance to query point sorted by distance in ascending order **/
   def appendMinimumDistance(trajectory: RDD[(String, Iterable[(Float, Float)])], queryLong: Float, queryLat: Float) :
+
     RDD[(String, Double, Iterable[(Float, Float)])] = {
     trajectory.map(x => (x._1, x._2.map(
       x => euclideanDistance(x._1, x._2, queryLong, queryLat))
