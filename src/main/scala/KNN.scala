@@ -19,7 +19,7 @@ import org.datasyslab.geospark.spatialRDD.{CircleRDD, LineStringRDD, PointRDD, S
 import org.datasyslab.geospark.spatialOperator.{JoinQuery, KNNQuery}
 
 
-//case class DataPoint(driverID: String, orderID: String, minute: Int, longitude: Float, latitude: Float) extends Serializable
+case class DataPoint(driverID: String, orderID: String, minute: Int, longitude: Float, latitude: Float) extends Serializable
 
 object KNN extends KNN {
 
@@ -81,9 +81,7 @@ object KNN extends KNN {
     //circleRdd.saveAsGeoJSON("data/output/circle")
     println(longitude +","+latitude)
     val result = KNNQuery.SpatialKnnQuery(trajectPoints,fact.createPoint(new Coordinate(longitude,latitude)),k,true)
-    val nextId = { var i = 0; () => { i += 1; i} }
-
-    result.forEach(x => sc.parallelize(x.getCoordinates.map(input => input.x + "," + input.y)).saveAsTextFile("data/output/result"+{var i = 0; () => { i += 1; i}}))
+    result.forEach(x => sc.parallelize(x.getCoordinates.map(input => input.x + ","+ input.y)).saveAsTextFile("data/output/result"+{var i = 0; () => { i += 1; i}}))
 //    sc.parallelize(result.get(0).getCoordinates.map(x => x.x + "," +x.y)).saveAsTextFile("data/output/result1")
 //    sc.parallelize(result.get(1).getCoordinates.map(x => x.x + "," +x.y)).saveAsTextFile("data/output/result2")
 //    sc.parallelize(result.get(2).getCoordinates.map(x => x.x + "," +x.y)).saveAsTextFile("data/output/result3")
