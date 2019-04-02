@@ -2,10 +2,9 @@ import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import java.text.SimpleDateFormat
+import archery._
 
-case class DataPoint(driverID: String, orderID: String, minute: Int, longitude: Float, latitude: Float) extends Serializable
-
-object Main extends Main {
+object TopkRTree extends TopkRTree {
 
   @transient lazy val conf: SparkConf = new SparkConf().setMaster("local").setAppName("Top-k_Trajectories")
   @transient lazy val sc: SparkContext = new SparkContext(conf)
@@ -21,13 +20,16 @@ object Main extends Main {
     val dataPoints = rawDataPoints(lines)
     val trajectories = getTrajectories(dataPoints)
     val filteredTrajectories = filterTrajectoriesByTime(trajectories, start, end)
-    val trajectoriesWithDistance = appendMinimumDistance(filteredTrajectories, interestLongitude, interestLatitude)
-    val result = sc.parallelize(trajectoriesWithDistance.take(k)).map(x => (x._1, x._3))
-    result.saveAsTextFile("data/out/result3.txt")
+    //val trajectoriesWithDistance = appendMinimumDistance(filteredTrajectories, interestLongitude, interestLatitude)
+    //val result = sc.parallelize(trajectoriesWithDistance.take(k)).map(x => (x._1, x._3))
+    //result.saveAsTextFile("data/out/result3.txt")
+    //filteredTrajectories.saveAsTextFile("data/out/rtree_pre")
+    val result = insertIntoRTree(filteredTrajectories)
+    result.saveAsTextFile("data/out/rtree")
   }
 }
 
-class Main extends Serializable {
+class TopkRTree extends Serializable {
 
   final val MAX_MINUTE = 1439
 
@@ -53,8 +55,7 @@ class Main extends Serializable {
 
   /** Filter the trajectories based on user input time */
   def filterTrajectoriesByTime(dataPoints: RDD[(String, Iterable[(String, Int, Float, Float)])], start: Int, end: Int):
-
-    RDD[(String, Iterable[(Float, Float)])] = {
+    RDD[(String, Iterable[Entry[String]])] = {
     dataPoints.filter { case (key, xs) =>
       xs.exists { xss =>
         if (start <= end) {
@@ -63,12 +64,11 @@ class Main extends Serializable {
           (xss._2 >= start) && (xss._2 <= MAX_MINUTE) || (xss._2 >= 0) && (xss._2 <= end)
         }
       }
-    }.map(x => (x._1, x._2.map(x => (x._3, x._4))))
+    }.map(x => (x._1, x._2.map(x => Entry(Point(x._3, x._4),""))))
   }
 
   /** Return trajectories with minimum distance to query point sorted by distance in ascending order **/
   def appendMinimumDistance(trajectory: RDD[(String, Iterable[(Float, Float)])], queryLong: Float, queryLat: Float) :
-
     RDD[(String, Double, Iterable[(Float, Float)])] = {
     trajectory.map(x => (x._1, x._2.map(
       x => euclideanDistance(x._1, x._2, queryLong, queryLat))
@@ -79,4 +79,13 @@ class Main extends Serializable {
   def euclideanDistance(x1: Float, y1: Float, x2: Float, y2: Float): Double = {
     Math.sqrt(Math.pow(x2 - x1,2) +  Math.pow(y2 - y1,2))
   }
+
+  def insertIntoRTree(input: RDD[(String, Iterable[Entry[String]])]) : RDD[(String, RTree[String])] = {
+    input.map{
+      x =>
+        val rTree: RTree[String] = RTree()
+        (x._1, rTree.insertAll(x._2))
+    }
+  }
+
 }
